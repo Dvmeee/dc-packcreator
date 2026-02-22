@@ -347,7 +347,7 @@ class PackCreatorApp:
 		self.name_entry = ctk.CTkEntry(
 			name_row,
 			fg_color="#1a1a1a",
-			text_color="#a91815",
+			text_color="white",
 			border_color="#a91815",
 			border_width=2,
 			placeholder_text="Example: xyz_dccars"
