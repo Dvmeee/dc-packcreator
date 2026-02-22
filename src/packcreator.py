@@ -196,7 +196,6 @@ class PackCreatorApp:
 		self.root.geometry("950x800")
 		self.root.minsize(700, 500)
 		
-		# State
 		self.selected_folders: list[str] = []
 		self.output_folder: str | None = None
 		self.audioconfig_path: str | None = None
@@ -206,7 +205,6 @@ class PackCreatorApp:
 		self.create_btn: ctk.CTkButton | None = None
 		self.validation_hint: ctk.CTkLabel | None = None
 		
-		# Status cards
 		self.status_cards: dict[str, tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkLabel]] = {}
 		self.step_labels: list[ctk.CTkLabel] = []
 
@@ -248,7 +246,6 @@ class PackCreatorApp:
 		outer = ctk.CTkFrame(self.root, fg_color="#1a1a1a", corner_radius=0)
 		outer.pack(fill="both", expand=True, padx=24, pady=24)
 
-		# Header
 		ctk.CTkLabel(outer, text="DC Cars Carpack Creator", text_color="white", font=("Helvetica", 24, "bold")).pack(anchor="w")
 		ctk.CTkLabel(
 			outer,
@@ -257,10 +254,9 @@ class PackCreatorApp:
 			font=("Helvetica", 11),
 		).pack(anchor="w", pady=(4, 20))
 
-		# Step Indicator
 		step_frame = ctk.CTkFrame(outer, fg_color="#1a1a1a", corner_radius=0)
 		step_frame.pack(fill="x", pady=(0, 20))
-		
+
 		self.step_labels = []
 		step_names = ["Vehicles", "Template", "Output", "Create"]
 		for i, label in enumerate(step_names, 1):
@@ -273,7 +269,6 @@ class PackCreatorApp:
 			step_label.pack(side="left", padx=(0, 20))
 			self.step_labels.append(step_label)
 
-		# Selection Buttons (2 rows)
 		button_row1 = ctk.CTkFrame(outer, fg_color="#1a1a1a", corner_radius=0)
 		button_row1.pack(fill="x", pady=(0, 8))
 
@@ -338,7 +333,6 @@ class PackCreatorApp:
 		)
 		self.create_btn.pack(side="left", fill="x", expand=True)
 
-		# Pack name input with validation
 		name_card = ctk.CTkFrame(outer, fg_color="#242424", corner_radius=12, border_width=2, border_color="#a91815")
 		name_card.pack(fill="x", pady=(0, 8))
 		name_row = ctk.CTkFrame(name_card, fg_color="#242424", corner_radius=0)
@@ -356,7 +350,6 @@ class PackCreatorApp:
 		self.name_entry.bind("<KeyRelease>", lambda e: self._on_name_change())
 		self.name_entry.bind("<FocusOut>", lambda e: self._on_focus_out())
 
-		# Validation hint
 		self.validation_hint = ctk.CTkLabel(
 			outer,
 			text="",
@@ -365,7 +358,6 @@ class PackCreatorApp:
 		)
 		self.validation_hint.pack(anchor="w", pady=(0, 12))
 
-		# Status Summary Cards
 		summary_label = ctk.CTkLabel(outer, text="Status Summary", text_color="white", font=("Helvetica", 12, "bold"))
 		summary_label.pack(anchor="w", pady=(8, 8))
 
@@ -391,7 +383,6 @@ class PackCreatorApp:
 		
 		current_text = self.name_entry.get().strip()
 		
-		# Ensure empty field stays empty (shows placeholder)
 		if not current_text:
 			self.name_entry.delete(0, tk.END)
 
@@ -399,17 +390,15 @@ class PackCreatorApp:
 		"""Validate pack name on change."""
 		if not self.name_entry:
 			return
-		
+
 		pack_name = self.name_entry.get().strip().lower()
 		
-		# Remove invalid characters
 		valid_name = re.sub(r"[^a-z0-9_]", "", pack_name)
 		if valid_name != pack_name:
 			self.name_entry.delete(0, tk.END)
 			self.name_entry.insert(0, valid_name)
 			pack_name = valid_name
 		
-		# Update validation hint and button
 		if pack_name and valid_name != pack_name:
 			self.validation_hint.configure(text="⚠ Only a-z, 0-9, and _ allowed")
 		else:
@@ -452,7 +441,6 @@ class PackCreatorApp:
 		content.configure(fg_color=bg_color)
 		label.configure(text=f"{icon} {text_var.get()}", text_color=border_color)
 		
-		# Update step indicator
 		step_index = list(self.status_cards.keys()).index(card_key)
 		if step_index < len(self.step_labels):
 			self.step_labels[step_index].configure(text_color="#00dd00" if is_selected else "#888888")
@@ -563,13 +551,11 @@ class PackCreatorApp:
 			messagebox.showerror("Error", f"Could not create pack:\n{exc}")
 			return
 
-		# Success message
 		result = messagebox.showinfo(
 			"Success",
 			f"✓ Pack successfully created!\n\nLocation:\n{pack_path}\n\n[OK] to close"
 		)
 		
-		# Optional: Reset after success
 		if messagebox.askyesno("New Pack?", "Create another pack?"):
 			self._reset_all()
 
@@ -594,15 +580,13 @@ class PackCreatorApp:
 		self._update_status_card("sfx", self.sfx_var, False)
 		self._update_status_card("manifest", self.manifest_var, False)
 		self._update_status_card("output", self.output_var, False)
-		
-		self._update_create_button()
 
+		self._update_create_button()
 
 def main() -> None:
 	root = ctk.CTk()
 	PackCreatorApp(root)
 	root.mainloop()
-
 
 if __name__ == "__main__":
 	main()
