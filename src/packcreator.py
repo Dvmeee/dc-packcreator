@@ -249,7 +249,7 @@ class PackCreatorApp:
 		outer.pack(fill="both", expand=True, padx=24, pady=24)
 
 		# Header
-		ctk.CTkLabel(outer, text="DC Cars Carpack Creator", text_color="#a91815", font=("Helvetica", 24, "bold")).pack(anchor="w")
+		ctk.CTkLabel(outer, text="DC Cars Carpack Creator", text_color="white", font=("Helvetica", 24, "bold")).pack(anchor="w")
 		ctk.CTkLabel(
 			outer,
 			text="4-step process to create a carpack",
@@ -343,7 +343,7 @@ class PackCreatorApp:
 		name_card.pack(fill="x", pady=(0, 8))
 		name_row = ctk.CTkFrame(name_card, fg_color="#242424", corner_radius=0)
 		name_row.pack(fill="x", padx=12, pady=10)
-		ctk.CTkLabel(name_row, text="Pack Name:", text_color="#a91815", font=("Helvetica", 11)).pack(side="left", padx=(0, 8))
+		ctk.CTkLabel(name_row, text="Pack Name:", text_color="white", font=("Helvetica", 11)).pack(side="left", padx=(0, 8))
 		self.name_entry = ctk.CTkEntry(
 			name_row,
 			fg_color="#1a1a1a",
@@ -365,7 +365,7 @@ class PackCreatorApp:
 		self.validation_hint.pack(anchor="w", pady=(0, 12))
 
 		# Status Summary Cards
-		summary_label = ctk.CTkLabel(outer, text="Status Summary", text_color="#a91815", font=("Helvetica", 12, "bold"))
+		summary_label = ctk.CTkLabel(outer, text="Status Summary", text_color="white", font=("Helvetica", 12, "bold"))
 		summary_label.pack(anchor="w", pady=(8, 8))
 
 		summary_frame = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
