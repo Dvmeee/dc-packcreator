@@ -390,6 +390,13 @@ class PackCreatorApp:
 		
 		pack_name = self.name_entry.get().strip().lower()
 		
+		# If empty, clear the field to show placeholder
+		if not pack_name:
+			self.name_entry.delete(0, tk.END)
+			self.validation_hint.configure(text="")
+			self._update_create_button()
+			return
+		
 		# Remove invalid characters
 		valid_name = re.sub(r"[^a-z0-9_]", "", pack_name)
 		if valid_name != pack_name:
@@ -397,7 +404,7 @@ class PackCreatorApp:
 			self.name_entry.insert(0, valid_name)
 		
 		# Update validation hint and button
-		if pack_name and valid_name != pack_name:
+		if valid_name != pack_name:
 			self.validation_hint.configure(text="⚠ Only a-z, 0-9, and _ allowed")
 		else:
 			self.validation_hint.configure(text="")
