@@ -1,2 +1,1 @@
-# No third-party dependencies required.
-# All modules used by dc-packcreator are part of the Python standard library.
+customtkinter>=5.2.2

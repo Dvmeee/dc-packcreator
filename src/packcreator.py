@@ -8,6 +8,8 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import zipfile
+import customtkinter as ctk
+import re
 
 
 REQUIRED_PACK_FOLDERS = ("audioconfig", "data", "stream", "sfx")
@@ -188,65 +190,188 @@ def create_carpack(
 
 
 class PackCreatorApp:
-	def __init__(self, root: tk.Tk) -> None:
+	def __init__(self, root: ctk.CTk) -> None:
 		self.root = root
-		self.root.title("Pack Creator")
-		self.root.geometry("700x500")
+		self.root.title("Pack Creator - DC Carpack Builder")
+		self.root.geometry("950x800")
+		self.root.minsize(700, 500)
+		
+		# State
 		self.selected_folders: list[str] = []
 		self.output_folder: str | None = None
 		self.audioconfig_path: str | None = None
 		self.sfx_path: str | None = None
 		self.fxmanifest_path: str | None = None
-		self.name_entry: ttk.Entry | None = None
+		self.name_entry: ctk.CTkEntry | None = None
+		self.create_btn: ctk.CTkButton | None = None
+		self.validation_hint: ctk.CTkLabel | None = None
+		
+		# Status cards
+		self.status_cards: dict[str, tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkLabel]] = {}
+		self.step_labels: list[ctk.CTkLabel] = []
 
 		self._setup_style()
 		self._build_ui()
 
 	def _setup_style(self) -> None:
-		style = ttk.Style(self.root)
-		style.theme_use("clam")
+		ctk.set_appearance_mode("dark")
+		self.root.configure(fg_color="#1a1a1a")
 
-		style.configure("Card.TFrame", background="#ffffff")
-		style.configure("Title.TLabel", background="#ffffff", foreground="#111827", font=("Helvetica", 18, "bold"))
-		style.configure("Text.TLabel", background="#ffffff", foreground="#4b5563", font=("Helvetica", 11))
-		style.configure(
-			"Modern.TButton",
-			font=("Helvetica", 11, "bold"),
-			padding=(14, 10),
-			background="#2563eb",
-			foreground="#ffffff",
-			borderwidth=0,
+	def _is_valid(self) -> bool:
+		"""Check if all required fields are filled and valid."""
+		if not self.name_entry:
+			return False
+		pack_name = self.name_entry.get().strip().lower()
+		name_valid = bool(pack_name) and re.match(r"^[a-z0-9_]+$", pack_name)
+		
+		return (
+			len(self.selected_folders) > 0 and
+			self.audioconfig_path is not None and
+			self.sfx_path is not None and
+			self.fxmanifest_path is not None and
+			self.output_folder is not None and
+			name_valid
 		)
-		style.map(
-			"Modern.TButton",
-			background=[("active", "#1d4ed8"), ("pressed", "#1e40af")],
-			foreground=[("disabled", "#9ca3af")],
-		)
+
+	def _update_create_button(self) -> None:
+		"""Update Create Pack button state."""
+		if self.create_btn:
+			is_valid = self._is_valid()
+			self.create_btn.configure(state="normal" if is_valid else "disabled")
+			self.create_btn.configure(
+				fg_color="#a91815" if is_valid else "#555555",
+				hover_color="#8e1412" if is_valid else "#555555",
+				border_color="#a91815" if is_valid else "#555555"
+			)
 
 	def _build_ui(self) -> None:
-		outer = ttk.Frame(self.root, padding=24, style="Card.TFrame")
+		outer = ctk.CTkFrame(self.root, fg_color="#1a1a1a", corner_radius=0)
 		outer.pack(fill="both", expand=True, padx=24, pady=24)
 
-		ttk.Label(outer, text="Pack Creator", style="Title.TLabel").pack(anchor="w")
-		ttk.Label(
+		# Header
+		ctk.CTkLabel(outer, text="DC Cars Carpack Creator", text_color="#a91815", font=("Helvetica", 24, "bold")).pack(anchor="w")
+		ctk.CTkLabel(
 			outer,
-			text="Select vehicle folders, template and output location, then create your carpack.",
-			style="Text.TLabel",
-		).pack(anchor="w", pady=(8, 20))
+			text="4-step process to create a carpack",
+			text_color="#888888",
+			font=("Helvetica", 11),
+		).pack(anchor="w", pady=(4, 20))
 
-		button_row = ttk.Frame(outer, style="Card.TFrame")
-		button_row.pack(fill="x", pady=(0, 12))
+		# Step Indicator
+		step_frame = ctk.CTkFrame(outer, fg_color="#1a1a1a", corner_radius=0)
+		step_frame.pack(fill="x", pady=(0, 20))
+		
+		self.step_labels = []
+		step_names = ["Vehicles", "Template", "Output", "Create"]
+		for i, label in enumerate(step_names, 1):
+			step_label = ctk.CTkLabel(
+				step_frame,
+				text=f"[{i}] {label}",
+				text_color="#888888",
+				font=("Helvetica", 10),
+			)
+			step_label.pack(side="left", padx=(0, 20))
+			self.step_labels.append(step_label)
 
-		ttk.Button(button_row, text="Select Vehicles", style="Modern.TButton", command=self.select_folder).pack(side="left", padx=(0, 12))
-		ttk.Button(button_row, text="Select Template", style="Modern.TButton", command=self.select_template).pack(side="left", padx=(0, 12))
-		ttk.Button(button_row, text="Select Output", style="Modern.TButton", command=self.select_output).pack(side="left", padx=(0, 12))
-		ttk.Button(button_row, text="Create Pack", style="Modern.TButton", command=self.create_pack_from_ui).pack(side="left")
+		# Selection Buttons (2 rows)
+		button_row1 = ctk.CTkFrame(outer, fg_color="#1a1a1a", corner_radius=0)
+		button_row1.pack(fill="x", pady=(0, 8))
 
-		name_row = ttk.Frame(outer, style="Card.TFrame")
-		name_row.pack(fill="x", pady=(0, 16))
-		ttk.Label(name_row, text="Pack Name:", style="Text.TLabel").pack(side="left", padx=(0, 8))
-		self.name_entry = ttk.Entry(name_row, width=40)
+		ctk.CTkButton(
+			button_row1,
+			text="1. Select Vehicles",
+			command=self.select_folder,
+			fg_color="#a91815",
+			hover_color="#8e1412",
+			text_color="#ffffff",
+			border_width=2,
+			border_color="#a91815",
+			corner_radius=12,
+			height=40,
+			font=("Helvetica", 11, "bold"),
+		).pack(side="left", padx=(0, 8), fill="x", expand=True)
+		
+		ctk.CTkButton(
+			button_row1,
+			text="2. Select Template",
+			command=self.select_template,
+			fg_color="#a91815",
+			hover_color="#8e1412",
+			text_color="#ffffff",
+			border_width=2,
+			border_color="#a91815",
+			corner_radius=12,
+			height=40,
+			font=("Helvetica", 11, "bold"),
+		).pack(side="left", fill="x", expand=True)
+
+		button_row2 = ctk.CTkFrame(outer, fg_color="#1a1a1a", corner_radius=0)
+		button_row2.pack(fill="x", pady=(0, 16))
+
+		ctk.CTkButton(
+			button_row2,
+			text="3. Select Output",
+			command=self.select_output,
+			fg_color="#a91815",
+			hover_color="#8e1412",
+			text_color="#ffffff",
+			border_width=2,
+			border_color="#a91815",
+			corner_radius=12,
+			height=40,
+			font=("Helvetica", 11, "bold"),
+		).pack(side="left", padx=(0, 8), fill="x", expand=True)
+		
+		self.create_btn = ctk.CTkButton(
+			button_row2,
+			text="4. Create Pack",
+			command=self.create_pack_from_ui,
+			fg_color="#555555",
+			hover_color="#555555",
+			text_color="#ffffff",
+			border_width=2,
+			border_color="#555555",
+			corner_radius=12,
+			height=40,
+			font=("Helvetica", 11, "bold"),
+			state="disabled",
+		)
+		self.create_btn.pack(side="left", fill="x", expand=True)
+
+		# Pack name input with validation
+		name_card = ctk.CTkFrame(outer, fg_color="#242424", corner_radius=12, border_width=2, border_color="#a91815")
+		name_card.pack(fill="x", pady=(0, 8))
+		name_row = ctk.CTkFrame(name_card, fg_color="#242424", corner_radius=0)
+		name_row.pack(fill="x", padx=12, pady=10)
+		ctk.CTkLabel(name_row, text="Pack Name:", text_color="#a91815", font=("Helvetica", 11)).pack(side="left", padx=(0, 8))
+		self.name_entry = ctk.CTkEntry(
+			name_row,
+			fg_color="#1a1a1a",
+			text_color="#a91815",
+			border_color="#a91815",
+			border_width=2,
+			placeholder_text="Example: xyz_dccars"
+		)
 		self.name_entry.pack(side="left", fill="x", expand=True)
+		self.name_entry.bind("<KeyRelease>", lambda e: self._on_name_change())
+
+		# Validation hint
+		self.validation_hint = ctk.CTkLabel(
+			outer,
+			text="",
+			text_color="#ff6666",
+			font=("Helvetica", 9),
+		)
+		self.validation_hint.pack(anchor="w", pady=(0, 12))
+
+		# Status Summary Cards
+		summary_label = ctk.CTkLabel(outer, text="Status Summary", text_color="#a91815", font=("Helvetica", 12, "bold"))
+		summary_label.pack(anchor="w", pady=(8, 8))
+
+		summary_frame = ctk.CTkScrollableFrame(outer, fg_color="transparent", corner_radius=0)
+		summary_frame.pack(fill="both", expand=True)
+		# Hide scrollbar
+		summary_frame._scrollbar.pack_forget()
 
 		self.folder_var = tk.StringVar(value="Vehicles: not selected")
 		self.audioconfig_var = tk.StringVar(value="AudioConfig: not selected")
@@ -254,11 +379,72 @@ class PackCreatorApp:
 		self.manifest_var = tk.StringVar(value="fxmanifest.lua: not selected")
 		self.output_var = tk.StringVar(value="Output folder: not selected")
 
-		ttk.Label(outer, textvariable=self.folder_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(8, 8))
-		ttk.Label(outer, textvariable=self.audioconfig_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
-		ttk.Label(outer, textvariable=self.sfx_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
-		ttk.Label(outer, textvariable=self.manifest_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
-		ttk.Label(outer, textvariable=self.output_var, style="Text.TLabel", wraplength=600).pack(anchor="w")
+		self.status_cards["folder"] = self._create_status_card(summary_frame, self.folder_var, False)
+		self.status_cards["audioconfig"] = self._create_status_card(summary_frame, self.audioconfig_var, False)
+		self.status_cards["sfx"] = self._create_status_card(summary_frame, self.sfx_var, False)
+		self.status_cards["manifest"] = self._create_status_card(summary_frame, self.manifest_var, False)
+		self.status_cards["output"] = self._create_status_card(summary_frame, self.output_var, False)
+
+	def _on_name_change(self) -> None:
+		"""Validate pack name on change."""
+		if not self.name_entry:
+			return
+		
+		pack_name = self.name_entry.get().strip().lower()
+		
+		# Remove invalid characters
+		valid_name = re.sub(r"[^a-z0-9_]", "", pack_name)
+		if valid_name != pack_name:
+			self.name_entry.delete(0, tk.END)
+			self.name_entry.insert(0, valid_name)
+		
+		# Update validation hint and button
+		if pack_name and valid_name != pack_name:
+			self.validation_hint.configure(text="⚠ Only a-z, 0-9, and _ allowed")
+		else:
+			self.validation_hint.configure(text="")
+		
+		self._update_create_button()
+
+	def _create_status_card(self, parent: ctk.CTkScrollableFrame, text_var: tk.StringVar, is_selected: bool) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkLabel]:
+		"""Create a status card with colored background."""
+		bg_color = "#1b3a1b" if is_selected else "#3a1b1b"
+		border_color = "#00dd00" if is_selected else "#a91815"
+		icon = "🟢" if is_selected else "🔴"
+		
+		card = ctk.CTkFrame(parent, fg_color=bg_color, corner_radius=10, border_width=2, border_color=border_color)
+		card.pack(fill="x", padx=0, pady=6)
+		
+		content = ctk.CTkFrame(card, fg_color=bg_color, corner_radius=0)
+		content.pack(fill="x", padx=12, pady=10)
+		
+		label = ctk.CTkLabel(
+			content,
+			text=f"{icon} {text_var.get()}",
+			text_color=border_color,
+			font=("Helvetica", 11),
+			anchor="w",
+			justify="left",
+		)
+		label.pack(fill="x")
+		
+		return (card, content, label)
+
+	def _update_status_card(self, card_key: str, text_var: tk.StringVar, is_selected: bool) -> None:
+		"""Update status card appearance and text."""
+		card, content, label = self.status_cards[card_key]
+		bg_color = "#1b3a1b" if is_selected else "#3a1b1b"
+		border_color = "#00dd00" if is_selected else "#a91815"
+		icon = "🟢" if is_selected else "🔴"
+		
+		card.configure(fg_color=bg_color, border_color=border_color)
+		content.configure(fg_color=bg_color)
+		label.configure(text=f"{icon} {text_var.get()}", text_color=border_color)
+		
+		# Update step indicator
+		step_index = list(self.status_cards.keys()).index(card_key)
+		if step_index < len(self.step_labels):
+			self.step_labels[step_index].configure(text_color="#00dd00" if is_selected else "#888888")
 
 	def select_folder(self) -> None:
 		selected: list[str] = []
@@ -281,6 +467,8 @@ class PackCreatorApp:
 				self.folder_var.set(f"1 Vehicle: {selected[0]}")
 			else:
 				self.folder_var.set(f"{len(selected)} Vehicles selected")
+			self._update_status_card("folder", self.folder_var, True)
+			self._update_create_button()
 
 	def select_template(self) -> None:
 		folder = filedialog.askdirectory(title="Select a template folder or component")
@@ -302,7 +490,12 @@ class PackCreatorApp:
 			self.sfx_var.set(f"SFX: {sfx_candidate.name}")
 			self.manifest_var.set(f"fxmanifest.lua: {manifest_candidate.name}")
 
+			self._update_status_card("audioconfig", self.audioconfig_var, True)
+			self._update_status_card("sfx", self.sfx_var, True)
+			self._update_status_card("manifest", self.manifest_var, True)
+
 			messagebox.showinfo("Done", "All components automatically detected!")
+			self._update_create_button()
 			return
 
 		folder_name = folder_path.name.lower()
@@ -310,50 +503,41 @@ class PackCreatorApp:
 		if "audio" in folder_name:
 			self.audioconfig_path = folder
 			self.audioconfig_var.set(f"AudioConfig: {folder_path.name}")
+			self._update_status_card("audioconfig", self.audioconfig_var, True)
 			messagebox.showinfo("audioconfig", "audioconfig folder saved. Now select sfx folder.")
 		elif "sfx" in folder_name:
 			self.sfx_path = folder
 			self.sfx_var.set(f"SFX: {folder_path.name}")
+			self._update_status_card("sfx", self.sfx_var, True)
 			messagebox.showinfo("sfx", "sfx folder saved. Now select fxmanifest.lua or audioconfig.")
 		elif "manifest" in folder_name or "fxmanifest" in folder_name:
 			manifest_file = folder_path / "fxmanifest.lua"
 			if manifest_file.is_file():
 				self.fxmanifest_path = str(manifest_file)
 				self.manifest_var.set(f"fxmanifest.lua: {manifest_file.name}")
+				self._update_status_card("manifest", self.manifest_var, True)
 				messagebox.showinfo("manifest", "fxmanifest.lua found. Now select audioconfig and sfx.")
 			else:
 				messagebox.showwarning("Error", "fxmanifest.lua not found in this folder.")
 		else:
 			messagebox.showwarning("Not recognized", f"Folder '{folder_name}' could not be automatically assigned.\n\nPlease rename it or select a folder with 'audioconfig', 'sfx' or 'fxmanifest' in the name.")
+		
+		self._update_create_button()
 
 	def select_output(self) -> None:
 		folder = filedialog.askdirectory(title="Select output folder for carpack")
 		if folder:
 			self.output_folder = folder
 			self.output_var.set(f"Output folder: {folder}")
+			self._update_status_card("output", self.output_var, True)
+			self._update_create_button()
 
 	def create_pack_from_ui(self) -> None:
-		if not self.selected_folders:
-			messagebox.showerror("Missing Vehicles", "Please first select vehicle folders with 'Select Vehicles'.")
+		if not self._is_valid():
+			messagebox.showerror("Invalid Input", "Please fill all required fields correctly.")
 			return
 
-		if not self.audioconfig_path:
-			messagebox.showerror("Missing AudioConfig", "Please first select audioconfig folder with 'Select Template'.")
-			return
-
-		if not self.sfx_path:
-			messagebox.showerror("Missing SFX", "Please first select sfx folder with 'Select Template'.")
-			return
-
-		if not self.fxmanifest_path:
-			messagebox.showerror("Missing fxmanifest", "Please first select fxmanifest.lua file with 'Select Template'.")
-			return
-
-		if not self.output_folder:
-			messagebox.showerror("Missing Output", "Please first select output folder with 'Select Output'.")
-			return
-
-		pack_name = (self.name_entry.get().strip() or None) if self.name_entry else None
+		pack_name = self.name_entry.get().strip().lower() if self.name_entry else None
 
 		try:
 			pack_path = create_carpack(
@@ -368,11 +552,43 @@ class PackCreatorApp:
 			messagebox.showerror("Error", f"Could not create pack:\n{exc}")
 			return
 
-		messagebox.showinfo("Success", f"Pack successfully created:\n{pack_path}")
+		# Success message
+		result = messagebox.showinfo(
+			"Success",
+			f"✓ Pack successfully created!\n\nLocation:\n{pack_path}\n\n[OK] to close"
+		)
+		
+		# Optional: Reset after success
+		if messagebox.askyesno("New Pack?", "Create another pack?"):
+			self._reset_all()
+
+	def _reset_all(self) -> None:
+		"""Reset all selections."""
+		self.selected_folders = []
+		self.output_folder = None
+		self.audioconfig_path = None
+		self.sfx_path = None
+		self.fxmanifest_path = None
+		if self.name_entry:
+			self.name_entry.delete(0, tk.END)
+
+		self.folder_var.set("Vehicles: not selected")
+		self.audioconfig_var.set("AudioConfig: not selected")
+		self.sfx_var.set("SFX: not selected")
+		self.manifest_var.set("fxmanifest.lua: not selected")
+		self.output_var.set("Output folder: not selected")
+
+		self._update_status_card("folder", self.folder_var, False)
+		self._update_status_card("audioconfig", self.audioconfig_var, False)
+		self._update_status_card("sfx", self.sfx_var, False)
+		self._update_status_card("manifest", self.manifest_var, False)
+		self._update_status_card("output", self.output_var, False)
+		
+		self._update_create_button()
 
 
 def main() -> None:
-	root = tk.Tk()
+	root = ctk.CTk()
 	PackCreatorApp(root)
 	root.mainloop()
 
