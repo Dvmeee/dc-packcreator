@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, ttk
 import zipfile
 
 
@@ -16,33 +16,25 @@ META_EXTENSIONS = {".meta"}
 STREAM_EXTENSIONS = {
 	".yft",
 	".ytd",
-	".ydr",
-	".ydd",
-	".ybn",
-	".ymap",
-	".ytyp",
 	".ycd",
-	".awc",
-	".rel",
+	".ydr"
 }
 
 
-def _write_template_files(archive: zipfile.ZipFile, template_dir: Path) -> None:
-	template_path = template_dir.expanduser().resolve()
-	if not template_path.exists():
-		raise FileNotFoundError(f"Template directory not found: {template_path}")
-	if not template_path.is_dir():
-		raise NotADirectoryError(f"Template path is not a directory: {template_path}")
-
-	manifest_path = template_path / "fxmanifest.lua"
-	if not manifest_path.is_file():
-		raise FileNotFoundError(f"Missing fxmanifest.lua in template directory: {template_path}")
-
-	audio_path = template_path / "audioconfig"
+def _write_template_files(archive: zipfile.ZipFile, audioconfig_path: str, sfx_path: str, fxmanifest_path: str) -> None:
+	audio_path = Path(audioconfig_path).expanduser().resolve()
 	if not audio_path.is_dir():
-		raise FileNotFoundError(f"Missing audioconfig directory in template directory: {template_path}")
+		raise NotADirectoryError(f"audioconfig is not a directory: {audio_path}")
 
-	archive.write(manifest_path, "fxmanifest.lua")
+	sfx_resolved = Path(sfx_path).expanduser().resolve()
+	if not sfx_resolved.is_dir():
+		raise NotADirectoryError(f"sfx is not a directory: {sfx_resolved}")
+
+	manifest = Path(fxmanifest_path).expanduser().resolve()
+	if not manifest.is_file():
+		raise FileNotFoundError(f"fxmanifest.lua not found: {manifest}")
+
+	archive.write(manifest, "fxmanifest.lua")
 
 	for root, _, files in os.walk(audio_path):
 		root_path = Path(root).resolve()
@@ -53,6 +45,17 @@ def _write_template_files(archive: zipfile.ZipFile, template_dir: Path) -> None:
 		for file_name in files:
 			file_path = root_path / file_name
 			target = Path("audioconfig") / relative_root / file_name
+			archive.write(file_path, target.as_posix())
+
+	for root, _, files in os.walk(sfx_resolved):
+		root_path = Path(root).resolve()
+		relative_root = root_path.relative_to(sfx_resolved)
+		if not files and relative_root != Path("."):
+			archive.writestr((Path("sfx") / relative_root).as_posix() + "/", "")
+
+		for file_name in files:
+			file_path = root_path / file_name
+			target = Path("sfx") / relative_root / file_name
 			archive.write(file_path, target.as_posix())
 
 
@@ -103,7 +106,10 @@ def create_carpack(
 	vehicle_folders: list[str],
 	output_folder: str = "output",
 	pack_name: str | None = None,
-	template_dir: str = DEFAULT_TEMPLATE_DIR,
+	template_dir: str | None = None,
+	audioconfig_path: str | None = None,
+	sfx_path: str | None = None,
+	fxmanifest_path: str | None = None,
 ) -> str:
 	if not vehicle_folders:
 		raise ValueError("At least one vehicle folder must be provided.")
@@ -128,32 +134,55 @@ def create_carpack(
 
 	zip_path = output_path / zip_name
 
+	if not audioconfig_path or not sfx_path or not fxmanifest_path:
+		if not template_dir:
+			raise ValueError("Either individual template paths or template_dir must be provided.")
+		template_path = Path(template_dir).expanduser().resolve()
+		audioconfig_path = str(template_path / "audioconfig")
+		sfx_path = str(template_path / "sfx")
+		fxmanifest_path = str(template_path / "fxmanifest.lua")
+
 	with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
 		for folder_name in REQUIRED_PACK_FOLDERS:
 			archive.writestr(f"{folder_name}/", "")
 
-		_write_template_files(archive, Path(template_dir))
+		_write_template_files(archive, audioconfig_path, sfx_path, fxmanifest_path)
 
 		for vehicle_root in resolved_vehicle_folders:
 			vehicle_name = vehicle_root.name
 			for root, _, files in os.walk(vehicle_root):
 				current_root = Path(root).resolve()
 				for file_name in files:
+					if file_name == "fxmanifest.lua":
+						continue
+
 					file_path = current_root / file_name
 					if file_path.resolve() == zip_path:
 						continue
 
-					relative_file = file_path.relative_to(vehicle_root)
 					extension = file_path.suffix.lower()
+					relative_file = file_path.relative_to(vehicle_root)
 
-					if extension in META_EXTENSIONS:
-						target_path = Path("data") / vehicle_name / relative_file
-					elif extension in STREAM_EXTENSIONS:
-						target_path = Path("stream") / vehicle_name / relative_file
+					target_path = None
+
+					if relative_file.parts and relative_file.parts[0] == "data":
+						inner_relative = Path(*relative_file.parts[1:])
+						inner_ext = inner_relative.suffix.lower()
+						if inner_ext in META_EXTENSIONS or inner_ext in STREAM_EXTENSIONS:
+							target_path = Path("data") / vehicle_name / inner_relative
+					elif relative_file.parts and relative_file.parts[0] == "stream":
+						inner_relative = Path(*relative_file.parts[1:])
+						inner_ext = inner_relative.suffix.lower()
+						if inner_ext in STREAM_EXTENSIONS:
+							target_path = Path("stream") / vehicle_name / inner_relative
 					else:
-						target_path = Path("stream") / vehicle_name / relative_file
+						if extension in META_EXTENSIONS:
+							target_path = Path("data") / vehicle_name / relative_file
+						elif extension in STREAM_EXTENSIONS:
+							target_path = Path("stream") / vehicle_name / relative_file
 
-					archive.write(file_path, target_path.as_posix())
+					if target_path:
+						archive.write(file_path, target_path.as_posix())
 
 	return str(zip_path)
 
@@ -162,13 +191,13 @@ class PackCreatorApp:
 	def __init__(self, root: tk.Tk) -> None:
 		self.root = root
 		self.root.title("Pack Creator")
-		self.root.geometry("560x320")
-		self.root.minsize(520, 300)
-		self.root.configure(bg="#f3f4f6")
-
+		self.root.geometry("700x500")
 		self.selected_folders: list[str] = []
-		self.pack_name: str | None = None
-		self.template_dir = str(Path.cwd() / DEFAULT_TEMPLATE_DIR)
+		self.output_folder: str | None = None
+		self.audioconfig_path: str | None = None
+		self.sfx_path: str | None = None
+		self.fxmanifest_path: str | None = None
+		self.name_entry: ttk.Entry | None = None
 
 		self._setup_style()
 		self._build_ui()
@@ -201,22 +230,35 @@ class PackCreatorApp:
 		ttk.Label(outer, text="Pack Creator", style="Title.TLabel").pack(anchor="w")
 		ttk.Label(
 			outer,
-			text="Wähle einen oder mehrere Fahrzeug-Ordner, gib optional einen Namen ein und erstelle dein Carpack.",
+			text="Select vehicle folders, template and output location, then create your carpack.",
 			style="Text.TLabel",
 		).pack(anchor="w", pady=(8, 20))
 
 		button_row = ttk.Frame(outer, style="Card.TFrame")
-		button_row.pack(fill="x", pady=(0, 16))
+		button_row.pack(fill="x", pady=(0, 12))
 
-		ttk.Button(button_row, text="Select folder", style="Modern.TButton", command=self.select_folder).pack(side="left", padx=(0, 12))
-		ttk.Button(button_row, text="Enter Name", style="Modern.TButton", command=self.enter_name).pack(side="left", padx=(0, 12))
+		ttk.Button(button_row, text="Select Vehicles", style="Modern.TButton", command=self.select_folder).pack(side="left", padx=(0, 12))
+		ttk.Button(button_row, text="Select Template", style="Modern.TButton", command=self.select_template).pack(side="left", padx=(0, 12))
+		ttk.Button(button_row, text="Select Output", style="Modern.TButton", command=self.select_output).pack(side="left", padx=(0, 12))
 		ttk.Button(button_row, text="Create Pack", style="Modern.TButton", command=self.create_pack_from_ui).pack(side="left")
 
-		self.folder_var = tk.StringVar(value="Keine Fahrzeugordner ausgewählt")
-		self.name_var = tk.StringVar(value="Pack-Name: automatisch")
+		name_row = ttk.Frame(outer, style="Card.TFrame")
+		name_row.pack(fill="x", pady=(0, 16))
+		ttk.Label(name_row, text="Pack Name:", style="Text.TLabel").pack(side="left", padx=(0, 8))
+		self.name_entry = ttk.Entry(name_row, width=40)
+		self.name_entry.pack(side="left", fill="x", expand=True)
 
-		ttk.Label(outer, textvariable=self.folder_var, style="Text.TLabel", wraplength=500).pack(anchor="w", pady=(8, 8))
-		ttk.Label(outer, textvariable=self.name_var, style="Text.TLabel").pack(anchor="w")
+		self.folder_var = tk.StringVar(value="Vehicles: not selected")
+		self.audioconfig_var = tk.StringVar(value="AudioConfig: not selected")
+		self.sfx_var = tk.StringVar(value="SFX: not selected")
+		self.manifest_var = tk.StringVar(value="fxmanifest.lua: not selected")
+		self.output_var = tk.StringVar(value="Output folder: not selected")
+
+		ttk.Label(outer, textvariable=self.folder_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(8, 8))
+		ttk.Label(outer, textvariable=self.audioconfig_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
+		ttk.Label(outer, textvariable=self.sfx_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
+		ttk.Label(outer, textvariable=self.manifest_var, style="Text.TLabel", wraplength=600).pack(anchor="w", pady=(0, 8))
+		ttk.Label(outer, textvariable=self.output_var, style="Text.TLabel", wraplength=600).pack(anchor="w")
 
 	def select_folder(self) -> None:
 		selected: list[str] = []
@@ -229,47 +271,104 @@ class PackCreatorApp:
 			if folder not in selected:
 				selected.append(folder)
 
-			add_more = messagebox.askyesno("Weitere Auswahl", "Möchtest du einen weiteren Fahrzeug-Ordner hinzufügen?")
+			add_more = messagebox.askyesno("Add Another", "Do you want to add another vehicle folder?")
 			if not add_more:
 				break
 
 		if selected:
 			self.selected_folders = selected
 			if len(selected) == 1:
-				self.folder_var.set(f"1 Fahrzeugordner: {selected[0]}")
+				self.folder_var.set(f"1 Vehicle: {selected[0]}")
 			else:
-				self.folder_var.set(f"{len(selected)} Fahrzeugordner ausgewählt")
+				self.folder_var.set(f"{len(selected)} Vehicles selected")
 
-	def enter_name(self) -> None:
-		name = simpledialog.askstring("Enter Name", "Pack name (optional):", parent=self.root)
-		if name is None:
+	def select_template(self) -> None:
+		folder = filedialog.askdirectory(title="Select a template folder or component")
+		if not folder:
 			return
 
-		cleaned_name = name.strip()
-		self.pack_name = cleaned_name or None
-		if self.pack_name:
-			self.name_var.set(f"Pack-Name: {self.pack_name}")
+		folder_path = Path(folder)
+
+		audioconfig_candidate = folder_path / "audioconfig"
+		sfx_candidate = folder_path / "sfx"
+		manifest_candidate = folder_path / "fxmanifest.lua"
+
+		if audioconfig_candidate.is_dir() and sfx_candidate.is_dir() and manifest_candidate.is_file():
+			self.audioconfig_path = str(audioconfig_candidate)
+			self.sfx_path = str(sfx_candidate)
+			self.fxmanifest_path = str(manifest_candidate)
+
+			self.audioconfig_var.set(f"AudioConfig: {audioconfig_candidate.name}")
+			self.sfx_var.set(f"SFX: {sfx_candidate.name}")
+			self.manifest_var.set(f"fxmanifest.lua: {manifest_candidate.name}")
+
+			messagebox.showinfo("Done", "All components automatically detected!")
+			return
+
+		folder_name = folder_path.name.lower()
+
+		if "audio" in folder_name:
+			self.audioconfig_path = folder
+			self.audioconfig_var.set(f"AudioConfig: {folder_path.name}")
+			messagebox.showinfo("audioconfig", "audioconfig folder saved. Now select sfx folder.")
+		elif "sfx" in folder_name:
+			self.sfx_path = folder
+			self.sfx_var.set(f"SFX: {folder_path.name}")
+			messagebox.showinfo("sfx", "sfx folder saved. Now select fxmanifest.lua or audioconfig.")
+		elif "manifest" in folder_name or "fxmanifest" in folder_name:
+			manifest_file = folder_path / "fxmanifest.lua"
+			if manifest_file.is_file():
+				self.fxmanifest_path = str(manifest_file)
+				self.manifest_var.set(f"fxmanifest.lua: {manifest_file.name}")
+				messagebox.showinfo("manifest", "fxmanifest.lua found. Now select audioconfig and sfx.")
+			else:
+				messagebox.showwarning("Error", "fxmanifest.lua not found in this folder.")
 		else:
-			self.name_var.set("Pack-Name: automatisch")
+			messagebox.showwarning("Not recognized", f"Folder '{folder_name}' could not be automatically assigned.\n\nPlease rename it or select a folder with 'audioconfig', 'sfx' or 'fxmanifest' in the name.")
+
+	def select_output(self) -> None:
+		folder = filedialog.askdirectory(title="Select output folder for carpack")
+		if folder:
+			self.output_folder = folder
+			self.output_var.set(f"Output folder: {folder}")
 
 	def create_pack_from_ui(self) -> None:
 		if not self.selected_folders:
-			messagebox.showerror("Missing folder", "Bitte zuerst mindestens einen Fahrzeug-Ordner mit 'Select folder' wählen.")
+			messagebox.showerror("Missing Vehicles", "Please first select vehicle folders with 'Select Vehicles'.")
 			return
+
+		if not self.audioconfig_path:
+			messagebox.showerror("Missing AudioConfig", "Please first select audioconfig folder with 'Select Template'.")
+			return
+
+		if not self.sfx_path:
+			messagebox.showerror("Missing SFX", "Please first select sfx folder with 'Select Template'.")
+			return
+
+		if not self.fxmanifest_path:
+			messagebox.showerror("Missing fxmanifest", "Please first select fxmanifest.lua file with 'Select Template'.")
+			return
+
+		if not self.output_folder:
+			messagebox.showerror("Missing Output", "Please first select output folder with 'Select Output'.")
+			return
+
+		pack_name = (self.name_entry.get().strip() or None) if self.name_entry else None
 
 		try:
-			output_dir = Path.cwd() / "output"
 			pack_path = create_carpack(
 				vehicle_folders=self.selected_folders,
-				output_folder=str(output_dir),
-				pack_name=self.pack_name,
-				template_dir=self.template_dir,
+				output_folder=self.output_folder,
+				pack_name=pack_name,
+				audioconfig_path=self.audioconfig_path,
+				sfx_path=self.sfx_path,
+				fxmanifest_path=self.fxmanifest_path,
 			)
 		except Exception as exc:
-			messagebox.showerror("Error", f"Pack konnte nicht erstellt werden:\n{exc}")
+			messagebox.showerror("Error", f"Could not create pack:\n{exc}")
 			return
 
-		messagebox.showinfo("Success", f"Pack erfolgreich erstellt:\n{pack_path}")
+		messagebox.showinfo("Success", f"Pack successfully created:\n{pack_path}")
 
 
 def main() -> None:

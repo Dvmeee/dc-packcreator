@@ -69,11 +69,14 @@ class TestCreateCarpack(unittest.TestCase):
         os.makedirs(self.vehicle_two)
         os.makedirs(self.template_dir)
         os.makedirs(os.path.join(self.template_dir, "audioconfig"))
+        os.makedirs(os.path.join(self.template_dir, "sfx"))
 
         with open(os.path.join(self.template_dir, "fxmanifest.lua"), "w") as f:
             f.write("fx_version 'cerulean'\ngame 'gta5'\n")
         with open(os.path.join(self.template_dir, "audioconfig", "preset.dat54.rel"), "w") as f:
             f.write("audio")
+        with open(os.path.join(self.template_dir, "sfx", "engine.awc"), "w") as f:
+            f.write("sfx")
 
         with open(os.path.join(self.vehicle_one, "vehicles.meta"), "w") as f:
             f.write("meta")
@@ -144,3 +147,4 @@ class TestCreateCarpack(unittest.TestCase):
 
         self.assertIn("fxmanifest.lua", names)
         self.assertIn("audioconfig/preset.dat54.rel", names)
+        self.assertIn("sfx/engine.awc", names)
