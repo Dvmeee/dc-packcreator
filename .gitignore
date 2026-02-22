@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Output packs
+output/*.zip
+
+# VSCode workspace settings (keep .vscode/launch.json & settings.json if needed)
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
