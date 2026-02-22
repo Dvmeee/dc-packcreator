@@ -354,6 +354,7 @@ class PackCreatorApp:
 		)
 		self.name_entry.pack(side="left", fill="x", expand=True)
 		self.name_entry.bind("<KeyRelease>", lambda e: self._on_name_change())
+		self.name_entry.bind("<FocusOut>", lambda e: self._on_focus_out())
 
 		# Validation hint
 		self.validation_hint = ctk.CTkLabel(
@@ -383,6 +384,17 @@ class PackCreatorApp:
 		self.status_cards["manifest"] = self._create_status_card(summary_frame, self.manifest_var, False)
 		self.status_cards["output"] = self._create_status_card(summary_frame, self.output_var, False)
 
+	def _on_focus_out(self) -> None:
+		"""Handle when name entry loses focus."""
+		if not self.name_entry:
+			return
+		
+		current_text = self.name_entry.get().strip()
+		
+		# Ensure empty field stays empty (shows placeholder)
+		if not current_text:
+			self.name_entry.delete(0, tk.END)
+
 	def _on_name_change(self) -> None:
 		"""Validate pack name on change."""
 		if not self.name_entry:
@@ -390,21 +402,15 @@ class PackCreatorApp:
 		
 		pack_name = self.name_entry.get().strip().lower()
 		
-		# If empty, clear the field to show placeholder
-		if not pack_name:
-			self.name_entry.delete(0, tk.END)
-			self.validation_hint.configure(text="")
-			self._update_create_button()
-			return
-		
 		# Remove invalid characters
 		valid_name = re.sub(r"[^a-z0-9_]", "", pack_name)
 		if valid_name != pack_name:
 			self.name_entry.delete(0, tk.END)
 			self.name_entry.insert(0, valid_name)
+			pack_name = valid_name
 		
 		# Update validation hint and button
-		if valid_name != pack_name:
+		if pack_name and valid_name != pack_name:
 			self.validation_hint.configure(text="⚠ Only a-z, 0-9, and _ allowed")
 		else:
 			self.validation_hint.configure(text="")
