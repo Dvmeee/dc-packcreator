@@ -368,10 +368,8 @@ class PackCreatorApp:
 		summary_label = ctk.CTkLabel(outer, text="Status Summary", text_color="#a91815", font=("Helvetica", 12, "bold"))
 		summary_label.pack(anchor="w", pady=(8, 8))
 
-		summary_frame = ctk.CTkScrollableFrame(outer, fg_color="transparent", corner_radius=0)
+		summary_frame = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
 		summary_frame.pack(fill="both", expand=True)
-		# Hide scrollbar
-		summary_frame._scrollbar.pack_forget()
 
 		self.folder_var = tk.StringVar(value="Vehicles: not selected")
 		self.audioconfig_var = tk.StringVar(value="AudioConfig: not selected")
@@ -406,7 +404,7 @@ class PackCreatorApp:
 		
 		self._update_create_button()
 
-	def _create_status_card(self, parent: ctk.CTkScrollableFrame, text_var: tk.StringVar, is_selected: bool) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkLabel]:
+	def _create_status_card(self, parent: ctk.CTkFrame, text_var: tk.StringVar, is_selected: bool) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkLabel]:
 		"""Create a status card with colored background."""
 		bg_color = "#1b3a1b" if is_selected else "#3a1b1b"
 		border_color = "#00dd00" if is_selected else "#a91815"
